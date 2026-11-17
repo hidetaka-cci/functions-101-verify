@@ -2,6 +2,7 @@ version: 2.1
 
 functions:
   setup-node: github.com/circleci-functions/setup-node@v0.4.0
+  setup-browser-tools: github.com/circleci-functions/setup-browser-tools@v0.5.0
 
 jobs:
   test:
@@ -16,6 +17,20 @@ jobs:
       - run:
           name: Run tests
           command: npm test
+
+  e2e:
+    docker:
+      - image: cimg/base:current
+    steps:
+      - checkout
+      - setup-node:
+          with:
+            node-version: "22"
+      - setup-node/install-packages
+      - setup-browser-tools/install-chrome
+      - run:
+          name: Run Playwright E2E tests
+          command: npm run test:e2e
 
   deploy:
     docker:
@@ -34,6 +49,7 @@ workflows:
   test:
     jobs:
       - test
+      - e2e
       - deploy:
           requires:
             - test
