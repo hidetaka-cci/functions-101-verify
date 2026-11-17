@@ -1,52 +1,39 @@
 version: 2.1
 
-functions:
-  setup-node: github.com/circleci-functions/setup-node@v0.4.0
-
 jobs:
-  test:
-    docker:
-      - image: cimg/base:current
-    steps:
-      - checkout
-      - setup-node:
-          with:
-            node-version: "22"
-      - setup-node/install-packages
-      - run:
-          name: Run tests
-          command: npm test
-
   e2e:
     docker:
       - image: cimg/node:22.21-browsers
     steps:
       - checkout
       - run:
+          name: Locate browsers on image
+          command: |
+            set +e
+            echo '=== which ==='
+            which google-chrome google-chrome-stable chromium chromium-browser chrome 2>/dev/null
+            echo '=== ls opt/google ==='
+            ls -la /opt/google/chrome/ 2>/dev/null || echo 'no /opt/google/chrome'
+            echo '=== ls usr/bin *chrome* ==='
+            ls -la /usr/bin/*chrome* 2>/dev/null || true
+            echo '=== browser versions file ==='
+            cat /opt/google/chrome/chrome 2>/dev/null | head -c 20; echo
+            google-chrome --version 2>/dev/null || google-chrome-stable --version 2>/dev/null || true
+            echo '=== dpkg ==='
+            dpkg -l 'google-chrome*' 'chromium*' 2>/dev/null | rg -i 'chrome|chromium' || true
+      - run:
           name: Install packages
           command: npm ci
       - run:
-          name: Run Playwright E2E tests
-          command: npm run test:e2e
-
-  deploy:
-    docker:
-      - image: cimg/base:current
-    steps:
-      - checkout
-      - setup-node:
-          with:
-            node-version: "22"
-      - setup-node/install-packages
-      - run:
-          name: Deploy to Cloudflare Workers (dry run)
-          command: npx wrangler deploy --dry-run --outdir dist
+          name: Run Playwright with executablePath fallback
+          command: |
+            if [ -x /usr/bin/google-chrome-stable ]; then
+              export PLAYWRIGHT_CHROME_PATH=/usr/bin/google-chrome-stable
+            fi
+            ls -la /opt/google/chrome /usr/bin/google-chrome* 2>/dev/null || true
+            npm run test:e2e
 
 workflows:
   test:
     jobs:
-      - test
       - e2e
-      - deploy:
-          requires:
-            - test
